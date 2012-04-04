@@ -58,7 +58,7 @@ uint32_t calculateMasterChecksum(ResourceKey* resources) {
 	blkxNum = 0;
 	while(data != NULL) {
 		blkx = (BLKXTable*) data->data;
-		if(blkx->checksum.type == CHECKSUM_CRC32) {
+		if(blkx->checksum.type == CHECKSUM_UDIF_CRC32) {
 			blkxNum++;
 		}
 		data = data->next;
@@ -69,7 +69,7 @@ uint32_t calculateMasterChecksum(ResourceKey* resources) {
 	blkxNum = 0;
 	while(data != NULL) {
 		blkx = (BLKXTable*) data->data;
-		if(blkx->checksum.type == CHECKSUM_CRC32) {
+		if(blkx->checksum.type == CHECKSUM_UDIF_CRC32) {
 			buffer[(blkxNum * 4) + 0] = (blkx->checksum.data[0] >> 24) & 0xff;
 			buffer[(blkxNum * 4) + 1] = (blkx->checksum.data[0] >> 16) & 0xff;
 			buffer[(blkxNum * 4) + 2] = (blkx->checksum.data[0] >> 8) & 0xff;
@@ -144,7 +144,7 @@ int buildDmg(AbstractFile* abstractIn, AbstractFile* abstractOut) {
 	
 	abstractIn->seek(abstractIn, 0);
 	blkx = insertBLKX(abstractOut, abstractIn, USER_OFFSET, (volumeHeader->totalBlocks * volumeHeader->blockSize)/SECTOR_SIZE,
-				2, CHECKSUM_CRC32, &BlockSHA1CRC, &uncompressedToken, &CRCProxy, &dataForkToken, volume);
+				2, CHECKSUM_UDIF_CRC32, &BlockSHA1CRC, &uncompressedToken, &CRCProxy, &dataForkToken, volume);
 	
 	blkx->checksum.data[0] = uncompressedToken.crc;
 	printf("Inserting main blkx...\n"); fflush(stdout);
@@ -225,15 +225,15 @@ int buildDmg(AbstractFile* abstractIn, AbstractFile* abstractOut) {
 	koly.fUDIFSegmentID.data2 = rand();
 	koly.fUDIFSegmentID.data3 = rand();
 	koly.fUDIFSegmentID.data4 = rand();
-	koly.fUDIFDataForkChecksum.type = CHECKSUM_CRC32;
-	koly.fUDIFDataForkChecksum.size = 0x20;
+	koly.fUDIFDataForkChecksum.type = CHECKSUM_UDIF_CRC32;
+	koly.fUDIFDataForkChecksum.bitness = checksumBitness(CHECKSUM_UDIF_CRC32);
 	koly.fUDIFDataForkChecksum.data[0] = dataForkChecksum;
 	koly.fUDIFXMLOffset = plistOffset;
 	koly.fUDIFXMLLength = plistSize;
 	memset(&(koly.reserved1), 0, 0x78);
 	
-	koly.fUDIFMasterChecksum.type = CHECKSUM_CRC32;
-	koly.fUDIFMasterChecksum.size = 0x20;
+	koly.fUDIFMasterChecksum.type = CHECKSUM_UDIF_CRC32;
+	koly.fUDIFMasterChecksum.bitness = checksumBitness(CHECKSUM_UDIF_CRC32);
 	koly.fUDIFMasterChecksum.data[0] = calculateMasterChecksum(resources);
 	printf("Master checksum: %x\n", koly.fUDIFMasterChecksum.data[0]); fflush(stdout); 
 	
@@ -337,7 +337,7 @@ int convertToDMG(AbstractFile* abstractIn, AbstractFile* abstractOut) {
 			memset(&uncompressedToken, 0, sizeof(uncompressedToken));
 			
 			abstractIn->seek(abstractIn, partitions[i].pmPyPartStart * BlockSize);
-			blkx = insertBLKX(abstractOut, abstractIn, partitions[i].pmPyPartStart, partitions[i].pmPartBlkCnt, i, CHECKSUM_CRC32,
+			blkx = insertBLKX(abstractOut, abstractIn, partitions[i].pmPyPartStart, partitions[i].pmPartBlkCnt, i, CHECKSUM_UDIF_CRC32,
 						&BlockCRC, &uncompressedToken, &CRCProxy, &dataForkToken, NULL);
 			
 			blkx->checksum.data[0] = uncompressedToken.crc;	
@@ -378,7 +378,7 @@ int convertToDMG(AbstractFile* abstractIn, AbstractFile* abstractOut) {
 		memset(&uncompressedToken, 0, sizeof(uncompressedToken));
 		
 		abstractIn->seek(abstractIn, 0);
-		blkx = insertBLKX(abstractOut, abstractIn, 0, fileLength/SECTOR_SIZE, ENTIRE_DEVICE_DESCRIPTOR, CHECKSUM_CRC32,
+		blkx = insertBLKX(abstractOut, abstractIn, 0, fileLength/SECTOR_SIZE, ENTIRE_DEVICE_DESCRIPTOR, CHECKSUM_UDIF_CRC32,
 					&BlockCRC, &uncompressedToken, &CRCProxy, &dataForkToken, NULL);
 		resources = insertData(resources, "blkx", 0, "whole disk (unknown partition : 0)", (const char*) blkx, sizeof(BLKXTable) + (blkx->blocksRunCount * sizeof(BLKXRun)), ATTRIBUTE_HDIUTIL);
 		free(blkx);
@@ -442,15 +442,15 @@ int convertToDMG(AbstractFile* abstractIn, AbstractFile* abstractOut) {
 	koly.fUDIFSegmentID.data2 = rand();
 	koly.fUDIFSegmentID.data3 = rand();
 	koly.fUDIFSegmentID.data4 = rand();
-	koly.fUDIFDataForkChecksum.type = CHECKSUM_CRC32;
-	koly.fUDIFDataForkChecksum.size = 0x20;
+	koly.fUDIFDataForkChecksum.type = CHECKSUM_UDIF_CRC32;
+	koly.fUDIFDataForkChecksum.bitness = checksumBitness(CHECKSUM_UDIF_CRC32);
 	koly.fUDIFDataForkChecksum.data[0] = dataForkChecksum;
 	koly.fUDIFXMLOffset = plistOffset;
 	koly.fUDIFXMLLength = plistSize;
 	memset(&(koly.reserved1), 0, 0x78);
 	
-	koly.fUDIFMasterChecksum.type = CHECKSUM_CRC32;
-	koly.fUDIFMasterChecksum.size = 0x20;
+	koly.fUDIFMasterChecksum.type = CHECKSUM_UDIF_CRC32;
+	koly.fUDIFMasterChecksum.bitness = checksumBitness(CHECKSUM_UDIF_CRC32);
 	koly.fUDIFMasterChecksum.data[0] = calculateMasterChecksum(resources);
 	printf("Master checksum: %x\n", koly.fUDIFMasterChecksum.data[0]); fflush(stdout); 
 	

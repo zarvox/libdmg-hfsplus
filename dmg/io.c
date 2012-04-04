@@ -46,7 +46,7 @@ BLKXTable* insertBLKX(AbstractFile* out, AbstractFile* in, uint32_t firstSectorN
 	blkx->reserved6 = 0;
 	memset(&(blkx->checksum), 0, sizeof(blkx->checksum));
 	blkx->checksum.type = checksumType;
-	blkx->checksum.bitness = 32;
+	blkx->checksum.bitness = checksumBitness(checksumType);
 	blkx->blocksRunCount = 0;
 		
 	bufferSize = SECTOR_SIZE * blkx->decompressBufferRequested;
