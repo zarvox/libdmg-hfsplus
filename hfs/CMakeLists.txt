@@ -1,5 +1,5 @@
 link_directories (${PROJECT_BINARY_DIR}/common)
-add_library(hfs btree.c catalog.c extents.c fastunicodecompare.c flatfile.c hfslib.c rawfile.c utility.c volume.c)
+add_library(hfs btree.c catalog.c extents.c fastunicodecompare.c flatfile.c hfslib.c rawfile.c utility.c volume.c ../includes/hfs/hfslib.h ../includes/hfs/hfsplus.h)
 target_link_libraries(hfs common)
 
 add_executable(hfsplus hfs.c)
