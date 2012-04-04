@@ -213,39 +213,6 @@ io_func* openDmgFile(AbstractFile* abstractIn) {
 	dmg->runType = BLOCK_TERMINATOR; // causes cacheOffset on first read attempt
 	dmg->runData = NULL;
 
-#if 0
-	int j;
-    uint64_t kk;
-    kk = 0;
-    for(i = 0; i < dmg->numBLKX; i++) {
-        //printf("cacheOffset: blkx[%d]->firstSectorNumber = %llu\n", i, dmg->blkx[i]->firstSectorNumber);
-        //printf("cacheOffset: blkx[%d]->sectorCount = %llu\n", i, dmg->blkx[i]->sectorCount);
-        //printf("cacheOffset: blkx[%d]->dataStart = %llu\n", i, dmg->blkx[i]->dataStart);
-        printf("xf( ");
-        
-        for(j = 0; j < dmg->blkx[i]->blocksRunCount; j++) {
-            //printf("\tblkx[%d]->runs[%d].type = %X\n", i, j, dmg->blkx[i]->runs[j].type);
-            //printf("\tblkx[%d]->runs[%d].compOffset = %llu\n", i, j, dmg->blkx[i]->runs[j].compOffset);
-            //printf("\tblkx[%d]->runs[%d].compLength = %llu\n", i, j, dmg->blkx[i]->runs[j].compLength);
-            //printf("\tblkx[%d]->runs[%d].sectorStart = %llu\n", i, j, dmg->blkx[i]->runs[j].sectorStart);
-            //printf("\tblkx[%d]->runs[%d].sectorCount = %llu\n", i, j, dmg->blkx[i]->runs[j].sectorCount);
-            if (dmg->blkx[i]->runs[j].type == 0/* || dmg->blkx[i]->runs[j].type == 2*/)
-                printf("chr(0)*%llu*512", dmg->blkx[i]->runs[j].sectorCount);
-            if (dmg->blkx[i]->runs[j].type == 1)
-                printf("pc(%llu,%llu)", dmg->blkx[i]->runs[j].compOffset, dmg->blkx[i]->runs[j].compLength);
-            if (dmg->blkx[i]->runs[j].type == 0xFFFFFFFF)
-                printf("''");
-            
-            if (dmg->blkx[i]->runs[j].type != 0xFFFFFFFF)
-                printf(" + ");
-            
-            kk += dmg->blkx[i]->runs[j].compLength;
-        }
-        printf(" )\n");
-        //printf("\n");
-	}
-    printf("fileSize=%llu kk=%llu resxml=%llu sizeof=%lu\n", fileLength, kk, resourceFile.fUDIFXMLLength, sizeof(UDIFResourceFile));
-#endif
 	toReturn = (io_func*) malloc(sizeof(io_func));
 	
 	toReturn->data = dmg;
