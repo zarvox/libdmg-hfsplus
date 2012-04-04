@@ -744,7 +744,7 @@ int removeFile(const char* fileName, Volume* volume) {
   HFSPlusCatalogRecord* record;
   HFSPlusCatalogKey key;
   io_func* io;
-  HFSPlusCatalogFolder* parentFolder;
+  HFSPlusCatalogFolder* parentFolder = 0;
 
   record = getRecordFromPath3(fileName, volume, NULL, &key, TRUE, FALSE, kHFSRootFolderID);
   if(record != NULL) {
