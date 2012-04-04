@@ -8,14 +8,17 @@
 #include <hfs/hfsplus.h>
 #include "abstractfile.h"
 
-#define CHECKSUM_CRC32 0x00000002
+#define CHECKSUM_UDIF_CRC32 0x00000002
+#define CHECKSUM_MD5 0x00000004
 #define CHECKSUM_MKBLOCK 0x0002
 #define CHECKSUM_NONE 0x0000
 
-#define BLOCK_ZLIB 0x80000005
-#define BLOCK_ADC 0x80000004
+#define BLOCK_ZEROES 0x00000000
 #define BLOCK_RAW 0x00000001
 #define BLOCK_IGNORE 0x00000002
+#define BLOCK_ADC 0x80000004
+#define BLOCK_ZLIB 0x80000005
+#define BLOCK_BZIP2 0x80000006
 #define BLOCK_COMMENT 0x7FFFFFFE
 #define BLOCK_TERMINATOR 0xFFFFFFFF
 
@@ -56,7 +59,7 @@ enum {
 
 typedef struct {
 	uint32_t type;
-	uint32_t size;
+	uint32_t bitness;
 	uint32_t data[0x20];
 } __attribute__((__packed__)) UDIFChecksum;
 
@@ -217,6 +220,8 @@ typedef struct ResourceData {
 	size_t dataLength;
 	int id;
 	char* name;
+    size_t dataXmlOffset;
+    size_t dataXmlSize;
 	struct ResourceData* next;
 } ResourceData;
 
@@ -277,13 +282,17 @@ extern "C" {
 	void writeBase64(AbstractFile* file, unsigned char* data, size_t dataLength, int tabLength, int width);
 	char* convertBase64(unsigned char* data, size_t dataLength, int tabLength, int width);
 
+    uint32_t checksumBitness(uint32_t type);
+    
 	uint32_t CRC32Checksum(uint32_t* crc, const unsigned char *buf, size_t len);
+	uint32_t CRC32ZeroesChecksum(uint32_t* crc, size_t len);    
 	uint32_t MKBlockChecksum(uint32_t* ckSum, const unsigned char* data, size_t len);
 
 	void BlockSHA1CRC(void* token, const unsigned char* data, size_t len);
 	void BlockCRC(void* token, const unsigned char* data, size_t len);
 	void CRCProxy(void* token, const unsigned char* data, size_t len);
-
+    void CRCZeroesProxy(void* token, size_t len);
+    
 	void SHA1Transform(unsigned long state[5], const unsigned char buffer[64]);
 	void SHA1Init(SHA1_CTX* context);
 	void SHA1Update(SHA1_CTX* context, const unsigned char* data, unsigned int len);
@@ -297,7 +306,7 @@ extern "C" {
 	void readUDIFResourceFile(AbstractFile* file, UDIFResourceFile* o);
 	void writeUDIFResourceFile(AbstractFile* file, UDIFResourceFile* o);
 
-	ResourceKey* readResources(AbstractFile* file, UDIFResourceFile* resourceFile);
+	ResourceKey* readResources(char* xml, size_t length);
 	void writeResources(AbstractFile* file, ResourceKey* resources);
 	void releaseResources(ResourceKey* resources);
 

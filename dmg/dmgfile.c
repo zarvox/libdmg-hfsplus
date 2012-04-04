@@ -8,6 +8,7 @@
 #include <zlib.h>
 
 #include <dmg/dmg.h>
+#include <dmg/adc.h>
 #include <dmg/dmgfile.h>
 
 static void cacheRun(DMG* dmg, BLKXTable* blkx, int run) {
@@ -16,6 +17,7 @@ static void cacheRun(DMG* dmg, BLKXTable* blkx, int run) {
 	void* inBuffer;
 	int ret;
 	size_t have;
+        int bufferRead;
 	
 	if(dmg->runData) {
 		free(dmg->runData);
@@ -30,14 +32,14 @@ static void cacheRun(DMG* dmg, BLKXTable* blkx, int run) {
 	ASSERT(dmg->dmg->seek(dmg->dmg, blkx->dataStart + blkx->runs[run].compOffset) == 0, "fseeko");
 	
     switch(blkx->runs[run].type) {
-                 case BLOCK_ADC:
-			 bufferRead = 0;
-			 do {
-				 strm.avail_in = dmg->dmg->read(dmg->dmg, inBuffer, blkx->runs[run].compLength);
-				 strm.avail_out = adc_decompress(strm.avail_in, inBuffer, bufferSize, dmg->runData, &have);
-				 bufferRead+=strm.avail_out;
-			 } while (bufferRead < blkx->runs[run].compLength);
-			 break;
+        case BLOCK_ADC:
+            bufferRead = 0;
+            do {
+                strm.avail_in = dmg->dmg->read(dmg->dmg, inBuffer, blkx->runs[run].compLength);
+                strm.avail_out = adc_decompress(strm.avail_in, inBuffer, bufferSize, dmg->runData, &have);
+                bufferRead+=strm.avail_out;
+            } while (bufferRead < blkx->runs[run].compLength);
+            break;
 		case BLOCK_ZLIB:
 			strm.zalloc = Z_NULL;
 			strm.zfree = Z_NULL;
@@ -71,10 +73,18 @@ static void cacheRun(DMG* dmg, BLKXTable* blkx, int run) {
 			break;
 		case BLOCK_TERMINATOR:
 			break;
+        case BLOCK_ZEROES:
+            break;
+		case BLOCK_BZIP2:
+            ASSERT(0, "bzip2 decompressions is not supported yet");
+			break;
 		default:
+            fprintf(stderr, "error: unsupported block type %08x", blkx->runs[run].type);
+            exit(1);
 			break;
     }
 	
+    dmg->runType = blkx->runs[run].type;
 	dmg->runStart = (blkx->runs[run].sectorStart + blkx->firstSectorNumber) * SECTOR_SIZE;
 	dmg->runEnd = dmg->runStart + (blkx->runs[run].sectorCount * SECTOR_SIZE);
 }
@@ -110,7 +120,7 @@ static int dmgFileRead(io_func* io, off_t location, size_t size, void *buffer) {
 		return TRUE;
 	}
 
-	if(location < dmg->runStart || location >= dmg->runEnd) {
+	if(dmg->runType == BLOCK_TERMINATOR || location < dmg->runStart || location >= dmg->runEnd) {
 		cacheOffset(dmg, location);
 	}
 	
@@ -149,6 +159,7 @@ static void closeDmgFile(io_func* io) {
 	
 	free(dmg->blkx);
 	releaseResources(dmg->resources);
+    free(dmg->resourceXML);
 	dmg->dmg->close(dmg->dmg);
 	free(dmg);
 	free(io);
@@ -156,25 +167,29 @@ static void closeDmgFile(io_func* io) {
 
 io_func* openDmgFile(AbstractFile* abstractIn) {
 	off_t fileLength;
-	UDIFResourceFile resourceFile;
 	DMG* dmg;	
 	ResourceData* blkx;
 	ResourceData* curData;
-	int i;
 	
 	io_func* toReturn;
 
 	if(abstractIn == NULL) {
 		return NULL;
 	}
-	
+
+    dmg = (DMG*) malloc(sizeof(DMG));
+	dmg->dmg = abstractIn;
+
 	fileLength = abstractIn->getLength(abstractIn);
 	abstractIn->seek(abstractIn, fileLength - sizeof(UDIFResourceFile));
-	readUDIFResourceFile(abstractIn, &resourceFile);
+	readUDIFResourceFile(abstractIn, &dmg->resourceFile);
 	
-	dmg = (DMG*) malloc(sizeof(DMG));
-	dmg->dmg = abstractIn;
-	dmg->resources = readResources(abstractIn, &resourceFile);
+    dmg->resourceXML = malloc(dmg->resourceFile.fUDIFXMLLength + 1);
+    ASSERT( abstractIn->seek(abstractIn, (off_t)(dmg->resourceFile.fUDIFXMLOffset)) == 0, "fseeko" );
+    ASSERT( abstractIn->read(abstractIn, dmg->resourceXML, (size_t)dmg->resourceFile.fUDIFXMLLength) == (size_t)dmg->resourceFile.fUDIFXMLLength, "fread" );
+    dmg->resourceXML[dmg->resourceFile.fUDIFXMLLength] = 0;
+    
+	dmg->resources = readResources(dmg->resourceXML, dmg->resourceFile.fUDIFXMLLength);
 	dmg->numBLKX = 0;
 	
 	blkx = (getResourceByKey(dmg->resources, "blkx"))->data;
@@ -187,7 +202,7 @@ io_func* openDmgFile(AbstractFile* abstractIn) {
 	
 	dmg->blkx = (BLKXTable**) malloc(sizeof(BLKXTable*) * dmg->numBLKX);
 	
-	i = 0;
+	int i = 0;
 	while(blkx != NULL) {
 		dmg->blkx[i] = (BLKXTable*)(blkx->data);
 		i++;
@@ -195,10 +210,42 @@ io_func* openDmgFile(AbstractFile* abstractIn) {
 	}
 
 	dmg->offset = 0;
-	
+	dmg->runType = BLOCK_TERMINATOR; // causes cacheOffset on first read attempt
 	dmg->runData = NULL;
-	cacheOffset(dmg, 0);
-	
+
+#if 0
+	int j;
+    uint64_t kk;
+    kk = 0;
+    for(i = 0; i < dmg->numBLKX; i++) {
+        //printf("cacheOffset: blkx[%d]->firstSectorNumber = %llu\n", i, dmg->blkx[i]->firstSectorNumber);
+        //printf("cacheOffset: blkx[%d]->sectorCount = %llu\n", i, dmg->blkx[i]->sectorCount);
+        //printf("cacheOffset: blkx[%d]->dataStart = %llu\n", i, dmg->blkx[i]->dataStart);
+        printf("xf( ");
+        
+        for(j = 0; j < dmg->blkx[i]->blocksRunCount; j++) {
+            //printf("\tblkx[%d]->runs[%d].type = %X\n", i, j, dmg->blkx[i]->runs[j].type);
+            //printf("\tblkx[%d]->runs[%d].compOffset = %llu\n", i, j, dmg->blkx[i]->runs[j].compOffset);
+            //printf("\tblkx[%d]->runs[%d].compLength = %llu\n", i, j, dmg->blkx[i]->runs[j].compLength);
+            //printf("\tblkx[%d]->runs[%d].sectorStart = %llu\n", i, j, dmg->blkx[i]->runs[j].sectorStart);
+            //printf("\tblkx[%d]->runs[%d].sectorCount = %llu\n", i, j, dmg->blkx[i]->runs[j].sectorCount);
+            if (dmg->blkx[i]->runs[j].type == 0/* || dmg->blkx[i]->runs[j].type == 2*/)
+                printf("chr(0)*%llu*512", dmg->blkx[i]->runs[j].sectorCount);
+            if (dmg->blkx[i]->runs[j].type == 1)
+                printf("pc(%llu,%llu)", dmg->blkx[i]->runs[j].compOffset, dmg->blkx[i]->runs[j].compLength);
+            if (dmg->blkx[i]->runs[j].type == 0xFFFFFFFF)
+                printf("''");
+            
+            if (dmg->blkx[i]->runs[j].type != 0xFFFFFFFF)
+                printf(" + ");
+            
+            kk += dmg->blkx[i]->runs[j].compLength;
+        }
+        printf(" )\n");
+        //printf("\n");
+	}
+    printf("fileSize=%llu kk=%llu resxml=%llu sizeof=%lu\n", fileLength, kk, resourceFile.fUDIFXMLLength, sizeof(UDIFResourceFile));
+#endif
 	toReturn = (io_func*) malloc(sizeof(io_func));
 	
 	toReturn->data = dmg;

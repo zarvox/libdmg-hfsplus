@@ -242,7 +242,7 @@ static uint32_t getXMLInteger(char** location) {
   return toReturn;
 }
 
-static unsigned char* getXMLData(char** location, size_t *dataLength) {
+static unsigned char* getXMLData(char** location, size_t *dataLength, char** encodedStart, size_t* encodedLength) {
   char* curLoc;
   char* tagEnd;
   char* encodedData;
@@ -255,11 +255,17 @@ static unsigned char* getXMLData(char** location, size_t *dataLength) {
   if(!curLoc)
     return NULL;
   curLoc += sizeof("<data>") - 1;
+    
+    if (encodedStart)
+        *encodedStart = curLoc;
   
   tagEnd = strstr(curLoc, "</data>");
   
   
   strLen = (size_t)(tagEnd - curLoc);
+    
+    if (encodedLength)
+        *encodedLength = strLen;
   
   encodedData = (char*) malloc(strLen + 1);
   memcpy(encodedData, curLoc, strLen);
@@ -276,13 +282,14 @@ static unsigned char* getXMLData(char** location, size_t *dataLength) {
   return toReturn;
 }
 
-static void readResourceData(ResourceData* data, char** location, FlipDataFunc flipData) {
+static void readResourceData(ResourceData* data, char** location, char* xmlStart, FlipDataFunc flipData) {
   char* curLoc;
   char* tagBegin;
   char* tagEnd;
   char* dictEnd;
   size_t strLen;
   char* buffer;
+  char* encodedStart;
   
   curLoc = *location;
   
@@ -310,7 +317,9 @@ static void readResourceData(ResourceData* data, char** location, FlipDataFunc f
       sscanf(buffer, "0x%x", &(data->attributes));
       free(buffer);
     } else if(strncmp(tagBegin, "Data", strLen) == 0) {
-      data->data = getXMLData(&curLoc, &(data->dataLength));
+        encodedStart = 0;
+      data->data = getXMLData(&curLoc, &(data->dataLength), &encodedStart, &data->dataXmlSize);
+      data->dataXmlOffset = encodedStart - xmlStart;
       if(flipData) {
         (*flipData)(data->data, 0);
       }
@@ -362,7 +371,7 @@ static void readNSizResource(NSizResource* data, char** location) {
     curLoc = tagEnd + sizeof("</key>") - 1;
     
     if(strncmp(tagBegin, "SHA-1-digest", strLen) == 0) {
-      data->sha1Digest = getXMLData(&curLoc, &dummy);;
+      data->sha1Digest = getXMLData(&curLoc, &dummy, 0, 0);
       /*flipEndian(data->sha1Digest, 4);*/
     } else if(strncmp(tagBegin, "block-checksum-2", strLen) == 0) {
       data->blockChecksum2 = getXMLInteger(&curLoc);
@@ -521,8 +530,8 @@ void releaseNSiz(NSizResource* nSiz) {
   }
 }
 
-ResourceKey* readResources(AbstractFile* file, UDIFResourceFile* resourceFile) {
-  char* xml;
+ResourceKey* readResources(char* xml, size_t length) 
+{
   char* curLoc;
   char* tagEnd;
   size_t strLen;
@@ -531,9 +540,6 @@ ResourceKey* readResources(AbstractFile* file, UDIFResourceFile* resourceFile) {
   ResourceKey* curResource;
   ResourceData* curData;
   
-  xml = (char*) malloc((size_t)resourceFile->fUDIFXMLLength + 1); /* we're not going to handle over 32-bit resource files, that'd be insane */
-  xml[(size_t)resourceFile->fUDIFXMLLength] = '\0';
-
   if(!xml)
     return NULL;
 
@@ -541,9 +547,6 @@ ResourceKey* readResources(AbstractFile* file, UDIFResourceFile* resourceFile) {
   curResource = NULL;
   curData = NULL;
   
-  file->seek(file, (off_t)(resourceFile->fUDIFXMLOffset));
-  ASSERT(file->read(file, xml, (size_t)resourceFile->fUDIFXMLLength) == (size_t)resourceFile->fUDIFXMLLength, "fread");
-
   curLoc = strstr(xml, "<key>resource-fork</key>");
   if(!curLoc)
     return NULL;
@@ -612,14 +615,12 @@ ResourceKey* readResources(AbstractFile* file, UDIFResourceFile* resourceFile) {
       
       curData->next = NULL;
       
-      readResourceData(curData, &curLoc, curResource->flipData);
+      readResourceData(curData, &curLoc, xml, curResource->flipData);
       curLoc = strstr(curLoc, "<dict>");
     }
        
     curLoc = tagEnd + sizeof("</array>") - 1;
   }
-  
-  free(xml);
   
   return toReturn;
 }

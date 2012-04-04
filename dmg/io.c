@@ -4,6 +4,7 @@
 #include <zlib.h>
 
 #include <dmg/dmg.h>
+#include <dmg/adc.h>
 #include <inttypes.h>
 
 #define SECTORS_AT_A_TIME 0x200
@@ -45,7 +46,7 @@ BLKXTable* insertBLKX(AbstractFile* out, AbstractFile* in, uint32_t firstSectorN
 	blkx->reserved6 = 0;
 	memset(&(blkx->checksum), 0, sizeof(blkx->checksum));
 	blkx->checksum.type = checksumType;
-	blkx->checksum.size = 0x20;
+	blkx->checksum.bitness = 32;
 	blkx->blocksRunCount = 0;
 		
 	bufferSize = SECTOR_SIZE * blkx->decompressBufferRequested;
@@ -148,6 +149,7 @@ void extractBLKX(AbstractFile* in, AbstractFile* out, BLKXTable* blkx) {
 	off_t initialOffset;
 	int i;
 	int ret;
+        int bufferRead;
 	
 	z_stream strm;
 	
@@ -183,6 +185,7 @@ void extractBLKX(AbstractFile* in, AbstractFile* out, BLKXTable* blkx) {
 		
 		switch(blkx->runs[i].type) {
 		        case BLOCK_ADC:
+                            bufferRead = 0;
 				do {
 					ASSERT((strm.avail_in = in->read(in, inBuffer, blkx->runs[i].compLength)) == blkx->runs[i].compLength, "fread");
 					strm.avail_out = adc_decompress(strm.avail_in, inBuffer, bufferSize, outBuffer, &have);
