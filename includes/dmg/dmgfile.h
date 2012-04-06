@@ -7,6 +7,9 @@
 #include <dmg/dmg.h>
 
 io_func* openDmgFile(AbstractFile* dmg);
+io_func* seekDmgPartition(io_func*, int partition);
+
+// combines openDmgFile+seekDmgPartition
 io_func* openDmgFilePartition(AbstractFile* dmg, int partition);
 
 typedef struct DMG {

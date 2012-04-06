@@ -76,7 +76,7 @@ static void cacheRun(DMG* dmg, BLKXTable* blkx, int run) {
         case BLOCK_ZEROES:
             break;
 		case BLOCK_BZIP2:
-            ASSERT(0, "bzip2 decompressions is not supported yet");
+            ASSERT(0, "bzip2-compressed images are not supported yet");
 			break;
 		default:
             fprintf(stderr, "error: unsupported block type %08x", blkx->runs[run].type);
@@ -144,6 +144,7 @@ static int dmgFileRead(io_func* io, off_t location, size_t size, void *buffer) {
 
 static int dmgFileWrite(io_func* io, off_t location, size_t size, void *buffer) {
 	fprintf(stderr, "Error: writing to DMGs is not supported (impossible to achieve with compressed images and retain asr multicast ordering).\n");
+    // hamstergene: is it really that hard? Doesn't seem so to me.
 	return FALSE;
 }
 
@@ -224,19 +225,22 @@ io_func* openDmgFile(AbstractFile* abstractIn) {
 }
 
 io_func* openDmgFilePartition(AbstractFile* abstractIn, int partition) {
-	io_func* toReturn;
+	io_func* toReturn = openDmgFile(abstractIn);
+    
+	if(toReturn == NULL) {
+		return NULL;
+	}
+    
+    return seekDmgPartition(toReturn, partition);
+}
+
+io_func* seekDmgPartition(io_func* toReturn, int partition) {
 	Partition* partitions;
 	uint8_t ddmBuffer[SECTOR_SIZE];
 	DriverDescriptorRecord* ddm;
 	int numPartitions;
 	int i;
 	unsigned int BlockSize;
-
-	toReturn = openDmgFile(abstractIn);
-
-	if(toReturn == NULL) {
-		return NULL;
-	}
 
 	toReturn->read(toReturn, 0, SECTOR_SIZE, ddmBuffer);
 	ddm = (DriverDescriptorRecord*) ddmBuffer;
