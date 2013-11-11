@@ -131,6 +131,16 @@ void cmd_chmod(Volume* volume, int argc, const char *argv[]) {
 	}
 }
 
+void cmd_attr(Volume* volume, int argc, const char *argv[]) {
+        int mode;
+
+        if(argc > 2) {
+                attrFile(argv[1], argv[2], volume);
+        } else {
+                printf("Not enough arguments");
+        }
+}
+
 void cmd_extractall(Volume* volume, int argc, const char *argv[]) {
 	HFSPlusCatalogRecord* record;
 	char cwd[1024];
@@ -237,7 +247,7 @@ int main(int argc, const char *argv[]) {
 	TestByteOrder();
 	
 	if(argc < 3) {
-		printf("usage: %s <image-file> <ls|cat|mv|mkdir|add|rm|chmod|extract|extractall|rmall|addall|debug> <arguments>\n", argv[0]);
+		printf("usage: %s <image-file> <ls|cat|mv|mkdir|add|rm|chmod|extract|extractall|rmall|addall|attr|debug> <arguments>\n", argv[0]);
 		return 0;
 	}
 	
@@ -271,6 +281,8 @@ int main(int argc, const char *argv[]) {
 			cmd_rm(volume, argc - 2, argv + 2);
 		} else if(strcmp(argv[2], "chmod") == 0) {
 			cmd_chmod(volume, argc - 2, argv + 2);
+                } else if(strcmp(argv[2], "attr") == 0) {
+                        cmd_attr(volume, argc - 2, argv + 2);
 		} else if(strcmp(argv[2], "extract") == 0) {
 			cmd_extract(volume, argc - 2, argv + 2);
 		} else if(strcmp(argv[2], "extractall") == 0) {
