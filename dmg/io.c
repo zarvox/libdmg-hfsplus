@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <zlib.h>
+#include <bzlib.h>
 
 #include <dmg/dmg.h>
 #include <dmg/adc.h>
@@ -24,8 +25,7 @@ BLKXTable* insertBLKX(AbstractFile* out, AbstractFile* in, uint32_t firstSectorN
 	size_t have;
 	int ret;
 	
-	z_stream strm;
-	
+	bz_stream strm;
 	
 	blkx = (BLKXTable*) malloc(sizeof(BLKXTable) + (2 * sizeof(BLKXRun)));
 	roomForRuns = 2;
@@ -63,22 +63,22 @@ BLKXTable* insertBLKX(AbstractFile* out, AbstractFile* in, uint32_t firstSectorN
 			blkx = (BLKXTable*) realloc(blkx, sizeof(BLKXTable) + (roomForRuns * sizeof(BLKXRun)));
 		}
 		
-		blkx->runs[curRun].type = BLOCK_ZLIB;
+		blkx->runs[curRun].type = BLOCK_BZIP2;
 		blkx->runs[curRun].reserved = 0;
 		blkx->runs[curRun].sectorStart = curSector;
 		blkx->runs[curRun].sectorCount = (numSectors > SECTORS_AT_A_TIME) ? SECTORS_AT_A_TIME : numSectors;
 
 		memset(&strm, 0, sizeof(strm));
-		strm.zalloc = Z_NULL;
-		strm.zfree = Z_NULL;
+		strm.bzalloc = Z_NULL;
+		strm.bzfree = Z_NULL;
 		strm.opaque = Z_NULL;
 		
 		printf("run %d: sectors=%" PRId64 ", left=%d\n", curRun, blkx->runs[curRun].sectorCount, numSectors);
 		
-		ASSERT(deflateInit(&strm, Z_DEFAULT_COMPRESSION) == Z_OK, "deflateInit");
+		ASSERT(BZ2_bzCompressInit(&strm, 9, 0, 0) == BZ_OK, "BZ2_bzCompressInit");
 		
 		ASSERT((strm.avail_in = in->read(in, inBuffer, blkx->runs[curRun].sectorCount * SECTOR_SIZE)) == (blkx->runs[curRun].sectorCount * SECTOR_SIZE), "mRead");
-		strm.next_in = inBuffer;
+		strm.next_in = (char*)inBuffer;
 		
 		if(uncompressedChk)
 			(*uncompressedChk)(uncompressedChkToken, inBuffer, blkx->runs[curRun].sectorCount * SECTOR_SIZE);
@@ -87,11 +87,11 @@ BLKXTable* insertBLKX(AbstractFile* out, AbstractFile* in, uint32_t firstSectorN
 		blkx->runs[curRun].compLength = 0;
 
 		strm.avail_out = bufferSize;
-		strm.next_out = outBuffer;
+		strm.next_out = (char*)outBuffer;
 	
-		ASSERT((ret = deflate(&strm, Z_FINISH)) != Z_STREAM_ERROR, "deflate/Z_STREAM_ERROR");
-		if(ret != Z_STREAM_END) {
-			ASSERT(FALSE, "deflate");
+		ASSERT((ret = BZ2_bzCompress(&strm, BZ_FINISH)) != BZ_SEQUENCE_ERROR, "BZ2_bzCompress/BZ_SEQUENCE_ERROR");
+		if(ret != BZ_STREAM_END) {
+			ASSERT(FALSE, "BZ2_bzCompress");
 		}
 		have = bufferSize - strm.avail_out;
 		
@@ -112,7 +112,7 @@ BLKXTable* insertBLKX(AbstractFile* out, AbstractFile* in, uint32_t firstSectorN
 			blkx->runs[curRun].compLength += have;
 		}
 							
-		deflateEnd(&strm);
+		BZ2_bzCompressEnd(&strm);
 
 		curSector += blkx->runs[curRun].sectorCount;
 		numSectors -= blkx->runs[curRun].sectorCount;
