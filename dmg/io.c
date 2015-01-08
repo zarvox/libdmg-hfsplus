@@ -152,6 +152,7 @@ void extractBLKX(AbstractFile* in, AbstractFile* out, BLKXTable* blkx) {
         int bufferRead;
 	
 	z_stream strm;
+	bz_stream bzstrm;
 	
 	bufferSize = SECTOR_SIZE * blkx->decompressBufferRequested;
 	
@@ -184,15 +185,15 @@ void extractBLKX(AbstractFile* in, AbstractFile* out, BLKXTable* blkx) {
 		printf("run %d: start=%" PRId64 " sectors=%" PRId64 ", length=%" PRId64 ", fileOffset=0x%" PRIx64 "\n", i, initialOffset + (blkx->runs[i].sectorStart * SECTOR_SIZE), blkx->runs[i].sectorCount, blkx->runs[i].compLength, blkx->runs[i].compOffset);
 		
 		switch(blkx->runs[i].type) {
-		        case BLOCK_ADC:
-                            bufferRead = 0;
+			case BLOCK_ADC:
+				bufferRead = 0;
 				do {
 					ASSERT((strm.avail_in = in->read(in, inBuffer, blkx->runs[i].compLength)) == blkx->runs[i].compLength, "fread");
 					strm.avail_out = adc_decompress(strm.avail_in, inBuffer, bufferSize, outBuffer, &have);
 					ASSERT(out->write(out, outBuffer, have) == have, "mWrite");
 					bufferRead+=strm.avail_out;
 				} while (bufferRead < blkx->runs[i].compLength);
-		  break;
+				break;
 			case BLOCK_ZLIB:
 				strm.zalloc = Z_NULL;
 				strm.zfree = Z_NULL;
@@ -240,6 +241,24 @@ void extractBLKX(AbstractFile* in, AbstractFile* out, BLKXTable* blkx) {
 				}
 				break;
 			case BLOCK_IGNORE:
+				break;
+			case BLOCK_BZIP2:
+				bzstrm.bzalloc = Z_NULL;
+				bzstrm.bzfree = Z_NULL;
+				bzstrm.opaque = Z_NULL;
+				bzstrm.avail_in = 0;
+				bzstrm.next_in = Z_NULL;
+				ASSERT(BZ2_bzDecompressInit(&bzstrm, 0, 0) == BZ_OK, "BZ2_bzDecompressInit");
+				ASSERT((bzstrm.avail_in = in->read(in, inBuffer, blkx->runs[i].compLength)) == blkx->runs[i].compLength, "fread");
+				bzstrm.next_in = (char*)inBuffer;
+				do {
+					bzstrm.avail_out = bufferSize;
+					bzstrm.next_out = (char*)outBuffer;
+					ASSERT((ret = BZ2_bzDecompress(&bzstrm)) >= 0, "BZ2_bzDecompress");
+					have = bufferSize - bzstrm.avail_out;
+					ASSERT(out->write(out, outBuffer, have) == have, "mWrite");
+				} while (bzstrm.avail_out == 0);
+				ASSERT(BZ2_bzDecompressEnd(&bzstrm) == BZ_OK, "BZ2_bzDecompressEnd");
 				break;
 			case BLOCK_COMMENT:
 				break;
