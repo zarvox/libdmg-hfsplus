@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <zlib.h>
+#include <bzlib.h>
 
 #include <dmg/dmg.h>
 #include <dmg/adc.h>
@@ -14,6 +15,7 @@
 static void cacheRun(DMG* dmg, BLKXTable* blkx, int run) {
 	size_t bufferSize;
 	z_stream strm;
+	bz_stream bzstrm;
 	void* inBuffer;
 	int ret;
 	size_t have;
@@ -76,7 +78,21 @@ static void cacheRun(DMG* dmg, BLKXTable* blkx, int run) {
         case BLOCK_ZEROES:
             break;
 		case BLOCK_BZIP2:
-            ASSERT(0, "bzip2-compressed images are not supported yet");
+			bzstrm.bzalloc = Z_NULL;
+			bzstrm.bzfree = Z_NULL;
+			bzstrm.opaque = Z_NULL;
+			bzstrm.avail_in = 0;
+			bzstrm.next_in = Z_NULL;
+			ASSERT(BZ2_bzDecompressInit(&bzstrm, 0, 0) == BZ_OK, "BZ2_bzDecompressInit");
+			ASSERT((bzstrm.avail_in = dmg->dmg->read(dmg->dmg, inBuffer, blkx->runs[run].compLength)) == blkx->runs[run].compLength, "fread");
+			bzstrm.next_in = (char*)inBuffer;
+			do {
+				bzstrm.avail_out = bufferSize;
+				bzstrm.next_out = (char*) dmg->runData;
+				ASSERT((ret = BZ2_bzDecompress(&bzstrm)) >= 0, "BZ2_bzDecompress");
+				have = bufferSize - bzstrm.avail_out;
+			} while (strm.avail_out == 0);
+			ASSERT(BZ2_bzDecompressEnd(&bzstrm) == BZ_OK, "BZ2_bzDecompressEnd");
 			break;
 		default:
             fprintf(stderr, "error: unsupported block type %08x", blkx->runs[run].type);
