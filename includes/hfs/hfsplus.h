@@ -476,6 +476,7 @@ extern "C" {
 	int chmodFile(const char* pathName, int mode, Volume* volume);
 	int chownFile(const char* pathName, uint32_t owner, uint32_t group, Volume* volume);
 	int makeSymlink(const char* pathName, const char* target, Volume* volume);
+	int attrFile(const char* pathName, const char* flags, Volume* volume);
 
 	HFSPlusCatalogRecord* getRecordByCNID(HFSCatalogNodeID CNID, Volume* volume);
 	HFSPlusCatalogRecord* getLinkTarget(HFSPlusCatalogRecord* record, HFSCatalogNodeID parentID, HFSPlusCatalogKey *key, Volume* volume);
