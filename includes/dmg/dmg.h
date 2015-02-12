@@ -220,8 +220,8 @@ typedef struct ResourceData {
 	size_t dataLength;
 	int id;
 	char* name;
-    size_t dataXmlOffset;
-    size_t dataXmlSize;
+	size_t dataXmlOffset;
+	size_t dataXmlSize;
 	struct ResourceData* next;
 } ResourceData;
 
@@ -236,9 +236,9 @@ typedef struct ResourceKey {
 } ResourceKey;
 
 typedef struct {
-    unsigned long state[5];
-    unsigned long count[2];
-    unsigned char buffer[64];
+	unsigned long state[5];
+	unsigned long count[2];
+	unsigned char buffer[64];
 } SHA1_CTX;
 
 typedef struct {
@@ -282,8 +282,8 @@ extern "C" {
 	void writeBase64(AbstractFile* file, unsigned char* data, size_t dataLength, int tabLength, int width);
 	char* convertBase64(unsigned char* data, size_t dataLength, int tabLength, int width);
 
-    uint32_t checksumBitness(uint32_t type);
-    
+	uint32_t checksumBitness(uint32_t type);
+
 	uint32_t CRC32Checksum(uint32_t* crc, const unsigned char *buf, size_t len);
 	uint32_t CRC32ZeroesChecksum(uint32_t* crc, size_t len);    
 	uint32_t MKBlockChecksum(uint32_t* ckSum, const unsigned char* data, size_t len);
@@ -291,8 +291,8 @@ extern "C" {
 	void BlockSHA1CRC(void* token, const unsigned char* data, size_t len);
 	void BlockCRC(void* token, const unsigned char* data, size_t len);
 	void CRCProxy(void* token, const unsigned char* data, size_t len);
-    void CRCZeroesProxy(void* token, size_t len);
-    
+	void CRCZeroesProxy(void* token, size_t len);
+
 	void SHA1Transform(unsigned long state[5], const unsigned char buffer[64]);
 	void SHA1Init(SHA1_CTX* context);
 	void SHA1Update(SHA1_CTX* context, const unsigned char* data, unsigned int len);
@@ -338,8 +338,8 @@ extern "C" {
 
 	void extractBLKX(AbstractFile* in, AbstractFile* out, BLKXTable* blkx);
 	BLKXTable* insertBLKX(AbstractFile* out, AbstractFile* in, uint32_t firstSectorNumber, uint32_t numSectors, uint32_t blocksDescriptor,
-				uint32_t checksumType, ChecksumFunc uncompressedChk, void* uncompressedChkToken, ChecksumFunc compressedChk,
-				void* compressedChkToken, Volume* volume);
+	            uint32_t checksumType, ChecksumFunc uncompressedChk, void* uncompressedChkToken, ChecksumFunc compressedChk,
+	            void* compressedChkToken, Volume* volume);
 
 
 	int extractDmg(AbstractFile* abstractIn, AbstractFile* abstractOut, int partNum);
