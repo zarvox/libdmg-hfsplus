@@ -533,23 +533,23 @@ HFSPlusCatalogRecord* getRecordFromPath3(const char* path, Volume* volume, char 
         }
       }
     }
-	
-    if(record->recordType == kHFSPlusFileRecord) {	
-	if((word + strlen(word) + 1) >= pathLimit) {
-		free(origPath);
-      
-		if(retKey != NULL) {
-			memcpy(retKey, &key, sizeof(HFSPlusCatalogKey));
-		}
-      
-		return record;
-	} else {
-		free(origPath);
-		free(record);
-		return NULL;
-	}
+
+    if(record->recordType == kHFSPlusFileRecord) {
+      if((word + strlen(word) + 1) >= pathLimit) {
+        free(origPath);
+
+        if(retKey != NULL) {
+          memcpy(retKey, &key, sizeof(HFSPlusCatalogKey));
+        }
+
+        return record;
+      } else {
+        free(origPath);
+        free(record);
+        return NULL;
+      }
     }
-    
+
     if(record->recordType != kHFSPlusFolderRecord)
       hfs_panic("inconsistent catalog tree!");
     
