@@ -55,6 +55,7 @@ The makefile in the root folder will make all utilities.
 	mkdir build && cd build
 	cmake ..
 	make # Or only make hfs / make dmg / ...
+	sudo make install
 
 ### HFS+
 
