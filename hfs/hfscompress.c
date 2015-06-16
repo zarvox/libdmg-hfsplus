@@ -70,7 +70,12 @@ static int compressedRead(io_func* io, off_t location, size_t size, void *buffer
 
 		data->cached = (uint8_t*) malloc(0x10000);
 		actualSize = 0x10000;
-		uncompress(data->cached, &actualSize, compressed, data->blocks->blocks[block].size);
+		if(compressed[0] == 0xff) {
+			actualSize = data->blocks->blocks[block].size - 1;
+			memcpy(data->cached, compressed + 1, actualSize);
+		} else {
+			uncompress(data->cached, &actualSize, compressed, data->blocks->blocks[block].size);
+		}
 		data->cachedStart = block * 0x10000;
 		data->cachedEnd = data->cachedStart + actualSize;
 		free(compressed);
@@ -251,9 +256,13 @@ io_func* openHFSPlusCompressed(Volume* volume, HFSPlusCatalogFile* file) {
 	if(data->decmpfs->flags == 0x3) {
 		data->cached = (uint8_t*) malloc(data->decmpfs->size);
 		actualSize = data->decmpfs->size;
-		uncompress(data->cached, &actualSize, data->decmpfs->data, data->decmpfsSize - sizeof(HFSPlusDecmpfs));
-		if(actualSize != data->decmpfs->size) {
-			fprintf(stderr, "decmpfs: size mismatch\n");
+		if(data->decmpfs->data[0] == 0xff) {
+			memcpy(data->cached, data->decmpfs->data + 1, actualSize);
+		} else {
+			uncompress(data->cached, &actualSize, data->decmpfs->data, data->decmpfsSize - sizeof(HFSPlusDecmpfs));
+			if(actualSize != data->decmpfs->size) {
+				fprintf(stderr, "decmpfs: size mismatch\n");
+			}
 		}
 		data->cachedStart = 0;
 		data->cachedEnd = actualSize;
