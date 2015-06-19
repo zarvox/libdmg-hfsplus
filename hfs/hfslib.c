@@ -7,6 +7,11 @@
 #include <hfs/hfscompress.h>
 #include <sys/stat.h>
 #include <inttypes.h>
+#ifdef WIN32
+#include <sys/utime.h>
+#else
+#include <utime.h>
+#endif
 
 #define BUFSIZE 1024*1024
 
@@ -411,6 +416,7 @@ static void extractOne(HFSCatalogNodeID folderID, char* name, HFSPlusCatalogReco
 #ifdef WIN32
 	HFSPlusCatalogRecord* targetRecord;
 #endif
+	struct utimbuf times;        
 	
 	if(strncmp(name, ".HFS+ Private Directory Data", sizeof(".HFS+ Private Directory Data") - 1) == 0 || name[0] == '\0') {
 		return;
@@ -427,6 +433,9 @@ static void extractOne(HFSCatalogNodeID folderID, char* name, HFSPlusCatalogReco
 		// TODO: chown . now that contents are extracted
 		ASSERT(chdir(cwd) == 0, "chdir");
 		chmod(name, folder->permissions.fileMode & 07777);
+		times.actime = APPLE_TO_UNIX_TIME(folder->accessDate);
+		times.modtime = APPLE_TO_UNIX_TIME(folder->contentModDate);
+		utime(name, &times);
 	} else if(record->recordType == kHFSPlusFileRecord) {
 		file = (HFSPlusCatalogFile*)record;
 		fileType = file->permissions.fileMode & S_IFMT;
@@ -469,6 +478,9 @@ static void extractOne(HFSCatalogNodeID folderID, char* name, HFSPlusCatalogReco
 #ifdef WIN32
 				chmod(name, file->permissions.fileMode & 07777);
 #endif
+				times.actime = APPLE_TO_UNIX_TIME(file->accessDate);
+				times.modtime = APPLE_TO_UNIX_TIME(file->contentModDate);
+				utime(name, &times);
 			} else {
 				printf("WARNING: cannot fopen %s\n", name);
 			}
