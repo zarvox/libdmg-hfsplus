@@ -562,8 +562,11 @@ HFSPlusCatalogRecord* getRecordFromPath3(const char* path, Volume* volume, char 
       continue;
     }
 
-    ASCIIToUnicode(word, &key.nodeName);
-    
+    if(strcmp(word, "..") == 0) {
+      key.nodeName.length = 0;
+    } else {
+      ASCIIToUnicode(word, &key.nodeName);
+    }
     key.keyLength = sizeof(key.parentID) + sizeof(key.nodeName.length) + (sizeof(uint16_t) * key.nodeName.length);
     record = (HFSPlusCatalogRecord*) search(volume->catalogTree, (BTKey*)(&key), &exact, NULL, NULL);
 
@@ -600,12 +603,22 @@ HFSPlusCatalogRecord* getRecordFromPath3(const char* path, Volume* volume, char 
 		return NULL;
 	}
     }
-    
+
+    if(record->recordType == kHFSPlusFolderThreadRecord) {
+      key.parentID = ((HFSPlusCatalogThread*)record)->parentID;
+      continue;
+    }
+
     if(record->recordType != kHFSPlusFolderRecord)
       hfs_panic("inconsistent catalog tree!");
     
     realParent = key.parentID;
     key.parentID = ((HFSPlusCatalogFolder*)record)->folderID;
+  }
+
+  if(record->recordType == kHFSPlusFolderThreadRecord) {
+    free(record);
+    record = getRecordByCNID(key.parentID, volume);
   }
   
   if(retKey != NULL) {

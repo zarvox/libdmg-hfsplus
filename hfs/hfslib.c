@@ -3,10 +3,8 @@
 #include <dirent.h>
 #include <time.h>
 #include <sys/types.h>
-#include "common.h"
-#include <hfs/hfsplus.h>
+#include <hfs/hfslib.h>
 #include <hfs/hfscompress.h>
-#include "abstractfile.h"
 #include <sys/stat.h>
 #include <inttypes.h>
 
@@ -402,15 +400,82 @@ void addAllInFolder(HFSCatalogNodeID folderID, Volume* volume, const char* paren
 	releaseCatalogRecordList(theList);
 }
 
+static void extractOne(HFSCatalogNodeID folderID, char* name, HFSPlusCatalogRecord* record, Volume* volume, char* cwd) {
+	HFSPlusCatalogFolder* folder;
+	HFSPlusCatalogFile* file;
+	AbstractFile* outFile;
+	struct stat status;
+	uint16_t fileType;
+	size_t size;
+	char* linkTarget;
+#ifdef WIN32
+	HFSPlusCatalogRecord* targetRecord;
+#endif
+	
+	if(strncmp(name, ".HFS+ Private Directory Data", sizeof(".HFS+ Private Directory Data") - 1) == 0 || name[0] == '\0') {
+		return;
+	}
+	
+	if(record->recordType == kHFSPlusFolderRecord) {
+		folder = (HFSPlusCatalogFolder*)record;
+		printf("folder: %s\n", name);
+		if(stat(name, &status) != 0) {
+			ASSERT(mkdir(name, 0755) == 0, "mkdir");
+		}
+		ASSERT(chdir(name) == 0, "chdir");
+		extractAllInFolder(folder->folderID, volume);
+		// TODO: chmod, chown . now that contents are extracted
+		ASSERT(chdir(cwd) == 0, "chdir");
+	} else if(record->recordType == kHFSPlusFileRecord) {
+		file = (HFSPlusCatalogFile*)record;
+		fileType = file->permissions.fileMode & S_IFMT;
+		if(fileType == S_IFLNK) {
+			// Symlinks are stored as a file with the symlink target in the file's data fork.
+			// We read the target into a data buffer, then pass that filename to symlink().
+			printf("symlink: %s\n", name);
+			size = file->dataFork.logicalSize;
+			if (size > 1024) {
+				printf("WARNING: symlink target for %s longer than PATH_MAX?  Skipping.\n", name);
+			} else {
+				// symlink(3) needs a null terminator, which the file contents do not include
+				linkTarget = (char*)malloc(size + 1);
+				outFile = createAbstractFileFromMemory((void**)(&linkTarget), size);
+				// write target from volume into linkTarget
+				writeToFile(file, outFile, volume);
+				linkTarget[size] = 0; // null terminator
+				outFile->close(outFile);
+#ifndef WIN32
+				symlink(linkTarget, name);
+#else
+				// create copies instead of symlinks on Windows
+				targetRecord = getRecordFromPath3(linkTarget, volume, NULL, NULL, TRUE, TRUE, folderID);
+				if (targetRecord != NULL) {
+					extractOne(folderID, name, targetRecord, volume, cwd);
+				}
+#endif
+				free(linkTarget);
+			}
+		} else if(fileType == S_IFREG) {
+			printf("file: %s\n", name);
+			outFile = createAbstractFileFromFile(fopen(name, "wb"));
+			if(outFile != NULL) {
+				writeToFile(file, outFile, volume);
+				// TODO: fchmod, fchown to replicate permissions
+				outFile->close(outFile);
+			} else {
+				printf("WARNING: cannot fopen %s\n", name);
+			}
+		} else {
+			printf("unsupported: %s\n", name);
+		}
+	}
+}
+
 void extractAllInFolder(HFSCatalogNodeID folderID, Volume* volume) {
 	CatalogRecordList* list;
 	CatalogRecordList* theList;
 	char cwd[1024];
 	char* name;
-	HFSPlusCatalogFolder* folder;
-	HFSPlusCatalogFile* file;
-	AbstractFile* outFile;
-	struct stat status;
 	
 	ASSERT(getcwd(cwd, 1024) != NULL, "cannot get current working directory");
 	
@@ -418,58 +483,7 @@ void extractAllInFolder(HFSCatalogNodeID folderID, Volume* volume) {
 	
 	while(list != NULL) {
 		name = unicodeToAscii(&list->name);
-		if(strncmp(name, ".HFS+ Private Directory Data", sizeof(".HFS+ Private Directory Data") - 1) == 0 || name[0] == '\0') {
-			free(name);
-			list = list->next;
-			continue;
-		}
-		
-		if(list->record->recordType == kHFSPlusFolderRecord) {
-			folder = (HFSPlusCatalogFolder*)list->record;
-			printf("folder: %s\n", name);
-			if(stat(name, &status) != 0) {
-				ASSERT(mkdir(name, 0755) == 0, "mkdir");
-			}
-			ASSERT(chdir(name) == 0, "chdir");
-			extractAllInFolder(folder->folderID, volume);
-			// TODO: chmod, chown . now that contents are extracted
-			ASSERT(chdir(cwd) == 0, "chdir");
-		} else if(list->record->recordType == kHFSPlusFileRecord) {
-			file = (HFSPlusCatalogFile*)list->record;
-			uint16_t fileType = file->permissions.fileMode & S_IFMT;
-			if(fileType == S_IFLNK) {
-				// Symlinks are stored as a file with the symlink target in the file's data fork.
-				// We read the target into a data buffer, then pass that filename to symlink().
-				printf("symlink: %s\n", name);
-				size_t size = file->dataFork.logicalSize;
-				if (size > 1024) {
-					printf("WARNING: symlink target for %s longer than PATH_MAX?  Skipping.\n", name);
-				} else {
-					// symlink(3) needs a null terminator, which the file contents do not include
-					char* linkTarget = (char*)malloc(size + 1);
-					outFile = createAbstractFileFromMemory((void**)(&linkTarget), size);
-					// write target from volume into linkTarget
-					writeToFile(file, outFile, volume);
-					linkTarget[size] = 0; // null terminator
-					symlink(linkTarget, name);
-					outFile->close(outFile);
-					free(linkTarget);
-				}
-			} else if(fileType == S_IFREG) {
-				printf("file: %s\n", name);
-				outFile = createAbstractFileFromFile(fopen(name, "wb"));
-				if(outFile != NULL) {
-					writeToFile(file, outFile, volume);
-					// TODO: fchmod, fchown to replicate permissions
-					outFile->close(outFile);
-				} else {
-					printf("WARNING: cannot fopen %s\n", name);
-				}
-			} else {
-				printf("unsupported: %s\n", name);
-			}
-		}
-		
+		extractOne(folderID, name, list->record, volume, cwd);
 		free(name);
 		list = list->next;
 	}
