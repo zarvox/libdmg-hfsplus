@@ -8,6 +8,7 @@
 #include <sys/types.h>
 
 #ifdef WIN32
+#include <unistd.h>
 #define fseeko fseeko64
 #define ftello ftello64
 #define off_t off64_t
