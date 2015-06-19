@@ -424,8 +424,9 @@ static void extractOne(HFSCatalogNodeID folderID, char* name, HFSPlusCatalogReco
 		}
 		ASSERT(chdir(name) == 0, "chdir");
 		extractAllInFolder(folder->folderID, volume);
-		// TODO: chmod, chown . now that contents are extracted
+		// TODO: chown . now that contents are extracted
 		ASSERT(chdir(cwd) == 0, "chdir");
+		chmod(name, folder->permissions.fileMode & 07777);
 	} else if(record->recordType == kHFSPlusFileRecord) {
 		file = (HFSPlusCatalogFile*)record;
 		fileType = file->permissions.fileMode & S_IFMT;
@@ -460,8 +461,14 @@ static void extractOne(HFSCatalogNodeID folderID, char* name, HFSPlusCatalogReco
 			outFile = createAbstractFileFromFile(fopen(name, "wb"));
 			if(outFile != NULL) {
 				writeToFile(file, outFile, volume);
-				// TODO: fchmod, fchown to replicate permissions
+				// TODO: fchown to replicate ownership
+#ifndef WIN32
+				fchmod(fileno((FILE*)outFile->data), file->permissions.fileMode & 07777);
+#endif
 				outFile->close(outFile);
+#ifdef WIN32
+				chmod(name, file->permissions.fileMode & 07777);
+#endif
 			} else {
 				printf("WARNING: cannot fopen %s\n", name);
 			}
