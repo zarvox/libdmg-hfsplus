@@ -352,6 +352,11 @@ void addAllInFolder(HFSCatalogNodeID folderID, Volume* volume, const char* paren
 			
 			fullName[pathLen] = '/';
 			fullName[pathLen + 1] = '\0';
+			/* Copy permissions from the source folder */
+			struct stat st;
+			ASSERT (lstat(ent->d_name, &st) == 0, "lstat");
+			chmodFile(fullName, (int)st.st_mode, volume);
+			printf("Setting permissions to %06o for %s\n", st.st_mode, fullName);
 			ASSERT(chdir(ent->d_name) == 0, "chdir");
 			addAllInFolder(cnid, volume, fullName);
 			ASSERT(chdir(cwd) == 0, "chdir");
@@ -366,6 +371,11 @@ void addAllInFolder(HFSCatalogNodeID folderID, Volume* volume, const char* paren
 			writeToHFSFile(outFile, file, volume);
 			file->close(file);
 			free(outFile);
+			/* Copy permissions from the source file */
+			struct stat st;
+			ASSERT (lstat(ent->d_name, &st) == 0, "lstat");
+			chmodFile(fullName, (int)st.st_mode, volume);
+			printf("Setting permissions to %06o for %s\n", st.st_mode, fullName);
 			
 			if(strncmp(fullName, "/Applications/", sizeof("/Applications/") - 1) == 0) {
 				testBuffer[0] = '\0';
@@ -534,7 +544,7 @@ void addall_hfs(Volume* volume, const char* dirToMerge, const char* dest) {
 	
 	if(record != NULL) {
 		if(record->recordType == kHFSPlusFolderRecord)
-			addAllInFolder(((HFSPlusCatalogFolder*)record)->folderID, volume, initPath);  
+			addAllInFolder(((HFSPlusCatalogFolder*)record)->folderID, volume, initPath);
 		else {
 			printf("Not a folder\n");
 			exit(0);

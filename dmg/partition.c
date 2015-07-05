@@ -513,7 +513,7 @@ int writeDriverDescriptorMap(int pNum, AbstractFile* file, DriverDescriptorRecor
 
   bufferFile = createAbstractFileFromMemory((void**)&buffer, DDM_SIZE * BlockSize);
   
-  blkx = insertBLKX(file, bufferFile, DDM_OFFSET, DDM_SIZE, DDM_DESCRIPTOR, CHECKSUM_CRC32, &CRCProxy, &uncompressedToken,
+  blkx = insertBLKX(file, bufferFile, DDM_OFFSET, DDM_SIZE, DDM_DESCRIPTOR, CHECKSUM_UDIF_CRC32, &CRCProxy, &uncompressedToken,
 			dataForkChecksum, dataForkToken, NULL, 0);
               
   blkx->checksum.data[0] = uncompressedToken.crc;
@@ -551,7 +551,7 @@ int writeApplePartitionMap(int pNum, AbstractFile* file, Partition* partitions, 
 
   bufferFile = createAbstractFileFromMemory((void**)&buffer, realPartitionSize);
    
-  blkx = insertBLKX(file, bufferFile, PARTITION_OFFSET * BlockSize / SECTOR_SIZE, realPartitionSize / SECTOR_SIZE, pNum, CHECKSUM_CRC32,
+  blkx = insertBLKX(file, bufferFile, PARTITION_OFFSET * BlockSize / SECTOR_SIZE, realPartitionSize / SECTOR_SIZE, pNum, CHECKSUM_UDIF_CRC32,
               &BlockCRC, &uncompressedToken, dataForkChecksum, dataForkToken, NULL, 0);
   
   bufferFile->close(bufferFile);
@@ -605,12 +605,12 @@ int writeATAPI(int pNum, AbstractFile* file, unsigned int BlockSize, ChecksumFun
 
   if(BlockSize != SECTOR_SIZE)
   {
-    blkx = insertBLKX(file, bufferFile, ATAPI_OFFSET, BlockSize / SECTOR_SIZE, pNum, CHECKSUM_CRC32,
+    blkx = insertBLKX(file, bufferFile, ATAPI_OFFSET, BlockSize / SECTOR_SIZE, pNum, CHECKSUM_UDIF_CRC32,
                 &BlockCRC, &uncompressedToken, dataForkChecksum, dataForkToken, NULL, 0);
   }
   else
   {
-    blkx = insertBLKX(file, bufferFile, ATAPI_OFFSET, ATAPI_SIZE, pNum, CHECKSUM_CRC32,
+    blkx = insertBLKX(file, bufferFile, ATAPI_OFFSET, ATAPI_SIZE, pNum, CHECKSUM_UDIF_CRC32,
                 &BlockCRC, &uncompressedToken, dataForkChecksum, dataForkToken, NULL, 0);
   }
 
@@ -817,8 +817,8 @@ int writeFreePartition(int pNum, AbstractFile* outFile, uint32_t offset, uint32_
   blkx->reserved5 = 0;
   blkx->reserved6 = 0;
   memset(&(blkx->checksum), 0, sizeof(blkx->checksum));
-  blkx->checksum.type = CHECKSUM_CRC32;
-  blkx->checksum.size = 0x20;
+  blkx->checksum.type = CHECKSUM_UDIF_CRC32;
+  blkx->checksum.bitness = checksumBitness(CHECKSUM_UDIF_CRC32);
   blkx->blocksRunCount = 2;
   blkx->runs[0].type = BLOCK_IGNORE;
   blkx->runs[0].reserved = 0;

@@ -36,33 +36,33 @@
 extern char endianness;
 
 static inline void flipEndian(unsigned char* x, int length) {
-  int i;
-  unsigned char tmp;
+	int i;
+	unsigned char tmp;
 
-  if(endianness == IS_BIG_ENDIAN) {
-    return;
-  } else {
-    for(i = 0; i < (length / 2); i++) {
-      tmp = x[i];
-      x[i] = x[length - i - 1];
-      x[length - i - 1] = tmp;
-    }
-  }
+	if(endianness == IS_BIG_ENDIAN) {
+		return;
+	} else {
+		for(i = 0; i < (length / 2); i++) {
+			tmp = x[i];
+			x[i] = x[length - i - 1];
+			x[length - i - 1] = tmp;
+		}
+	}
 }
 
 static inline void flipEndianLE(unsigned char* x, int length) {
-  int i;
-  unsigned char tmp;
+	int i;
+	unsigned char tmp;
 
-  if(endianness == IS_LITTLE_ENDIAN) {
-    return;
-  } else {
-    for(i = 0; i < (length / 2); i++) {
-      tmp = x[i];
-      x[i] = x[length - i - 1];
-      x[length - i - 1] = tmp;
-    }
-  }
+	if(endianness == IS_LITTLE_ENDIAN) {
+		return;
+	} else {
+		for(i = 0; i < (length / 2); i++) {
+			tmp = x[i];
+			x[i] = x[length - i - 1];
+			x[length - i - 1] = tmp;
+		}
+	}
 }
 
 static inline void hexToBytes(const char* hex, uint8_t** buffer, size_t* bytes) {
@@ -94,10 +94,10 @@ typedef int (*writeFunc)(struct io_func_struct* io, off_t location, size_t size,
 typedef void (*closeFunc)(struct io_func_struct* io);
 
 typedef struct io_func_struct {
-  void* data;
-  readFunc read;
-  writeFunc write;
-  closeFunc close;
+	void* data;
+	readFunc read;
+	writeFunc write;
+	closeFunc close;
 } io_func;
 
 struct AbstractFile;

@@ -4,6 +4,15 @@
 
 #include <dmg/dmg.h>
 
+uint32_t checksumBitness(uint32_t type)
+{
+    if (type == CHECKSUM_NONE) return 0;
+    if (type == CHECKSUM_UDIF_CRC32) return 32;
+    if (type == CHECKSUM_MD5) return 128;
+    ASSERT(0, "unknown checksum type");
+    return 0;
+}
+
 void BlockSHA1CRC(void* token, const unsigned char* data, size_t len) {
   ChecksumToken* ckSumToken;
   ckSumToken = (ChecksumToken*) token;
@@ -24,6 +33,13 @@ void CRCProxy(void* token, const unsigned char* data, size_t len) {
   ChecksumToken* ckSumToken;
   ckSumToken = (ChecksumToken*) token;
   CRC32Checksum(&(ckSumToken->crc), data, len);
+}
+
+void CRCZeroesProxy(void* token, size_t len) 
+{
+    ChecksumToken* ckSumToken;
+    ckSumToken = (ChecksumToken*) token;
+    CRC32ZeroesChecksum(&(ckSumToken->crc), len);
 }
 
 /*
@@ -121,10 +137,10 @@ static uint64_t crc_table[256] = {
 };
 
 /* ========================================================================= */
-#define DO1(buf) crc = crc_table[((int)crc ^ (*buf++)) & 0xff] ^ (crc >> 8);
-#define DO2(buf)  DO1(buf); DO1(buf);
-#define DO4(buf)  DO2(buf); DO2(buf);
-#define DO8(buf)  DO4(buf); DO4(buf);
+#define DO1(expr) crc = crc_table[((int)crc ^ (expr)) & 0xff] ^ (crc >> 8);
+#define DO2(expr)  DO1(expr); DO1(expr);
+#define DO4(expr)  DO2(expr); DO2(expr);
+#define DO8(expr)  DO4(expr); DO4(expr);
 
 /* ========================================================================= */
 uint32_t CRC32Checksum(uint32_t* ckSum, const unsigned char *buf, size_t len)
@@ -138,13 +154,13 @@ uint32_t CRC32Checksum(uint32_t* ckSum, const unsigned char *buf, size_t len)
   crc = crc ^ 0xffffffffL;
   while (len >= 8)
   {
-    DO8(buf);
+    DO8(*buf++); // intentionally incrementing multiple times
     len -= 8;
   }
   if (len)
   {
     do {
-DO1(buf);
+DO1(*buf++);
     } while (--len);
   }
   
@@ -154,6 +170,30 @@ DO1(buf);
   return crc;
 }
 
+uint32_t CRC32ZeroesChecksum(uint32_t* ckSum, size_t len)
+{
+    uint32_t crc;
+    
+    crc = *ckSum;
+    
+    crc = crc ^ 0xffffffffL;
+    while (len >= 8)
+    {
+        DO8(0);
+        len -= 8;
+    }
+    if (len)
+    {
+        do {
+            DO1(0);
+        } while (--len);
+    }
+    
+    crc = crc ^ 0xffffffffL;
+    
+    *ckSum = crc;
+    return crc;
+}
 /*
 SHA-1 in C
 By Steve Reid <steve@edmweb.com>
