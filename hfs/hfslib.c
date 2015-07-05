@@ -9,6 +9,7 @@
 #include <inttypes.h>
 #ifdef WIN32
 #include <sys/utime.h>
+#define lstat stat
 #else
 #include <utime.h>
 #endif
